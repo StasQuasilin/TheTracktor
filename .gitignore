@@ -1,0 +1,13 @@
+TraktorController/.idea/
+TraktorController/.vs/
+TraktorController/.vsconfig
+TraktorController/Assembly-CSharp.csproj
+TraktorController/Library/
+TraktorController/Logs/
+TraktorController/Packages/
+TraktorController/ProjectSettings/
+TraktorController/TraktorController.sln
+TraktorController/UpgradeLog.htm
+TraktorController/UserSettings/
+TraktorController/obj/
+android-controller.apk
