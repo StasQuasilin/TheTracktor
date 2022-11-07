@@ -1,32 +1,49 @@
 using System;
+using System.Collections.Generic;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
-using DitzeGames.MobileJoystick;
 using UnityEngine;
-using UnityEngine.SocialPlatforms;
+using UnityEngine.Serialization;
 
-public class MainController : MonoBehaviour
+public partial class MainController : MonoBehaviour
 {
     // Start is called before the first frame update
     public string address = "192.168.0.100";
     //private IPEndPoint _remoteEndPoint;
     private TcpClient _tcpClient;
-    private float lastSend;
+    private float _lastSend;
+
+    private AbstractController _controller;
+    public Dictionary<ControlType, AbstractController> _controllers = new Dictionary<ControlType, AbstractController>();
     
     public int dutyL, dutyR;
     [Range(0.2f, 1)]
     public float throttle = 1;
+    
+    [FormerlySerializedAs("_controlType")] public ControlType controlType = ControlType.Joystick;
 
-    private Joystick _joystick;
-    private TouchField _touchField;
-
-    private void Awake() {
-        _joystick = FindObjectOfType<Joystick>();
-        _touchField = FindObjectOfType<TouchField>();
+    private void Start()
+    {
+        _isControllerNull = _controller == null;
     }
 
-    void Start() {
+    private void Awake()
+    {
+
+        var controllers = FindObjectsOfType<AbstractController>();
+        foreach (var abstractController in controllers)
+        {
+            _controllers.Add(abstractController.GetControlType(), abstractController);
+            abstractController.gameObject.SetActive(false);
+        }
+#if UNITY_EDITOR
+        if (_controllers.ContainsKey(ControlType.Keyboard))
+        {
+            controlType = ControlType.Keyboard;
+        }
+#endif
+        ChangeControl(controlType);
     }
 
     private void Receive() {
@@ -43,35 +60,41 @@ public class MainController : MonoBehaviour
         Debug.Log("Receive Thread stop");
     }
 
-    void Update() {
+    private void Update() {
         if(_tcpClient?.Client == null) return;
         
-        if (_tcpClient == null || !_tcpClient.Connected || !(Time.time > lastSend + 0.01f)) return;
+        if (_tcpClient == null || !_tcpClient.Connected || !(Time.time > _lastSend + 0.01f)) return;
 
-        //float x = Input.GetAxis("Vertical");
-        //float y = Input.GetAxis("Horizontal") * 0.5f;
-        float x = _joystick.AxisNormalized.y;
-        float y = _joystick.AxisNormalized.x;
+        if (_isControllerNull) return;
+        
+        var controllerInput = _controller.GetInput();
+
+        float x = controllerInput.x;
+        float y = controllerInput.y;
 
         dutyL = (int) ((x - y) * 255);
         dutyR = (int) ((x + y) * 255);
 
-        lastSend = Time.time;
-        
+        _lastSend = Time.time;
     }
 
-    void SendDriveCommand() {
+    private void SendDriveCommand() {
+        //{"dl":-71,"dr":71}
         Send("{\"dl\":" + (int)(dutyL * throttle) + ",\"dr\":" + (int)(dutyR * throttle) + "}");
     }
 
-    private Rect _addressFieldRect = new Rect(0, 2, 200, 40);
-    private Rect _connectButtonRect = new Rect( 0, 2, 80, 20 );
+    private Rect _addressFieldRect = new Rect(0, 2, 100, 20);
+    private Rect _connectButtonRect = new Rect( 0, 22, 100, 40 );
 
     private Rect _leftStick = new Rect(2, 20, 20, 0);
-    private Rect _throtRect = new Rect(2, 20, 50, 0);
-    void OnGUI() {
-        _addressFieldRect.x = (Screen.width - 200 ) / 2;
-        _connectButtonRect.x = _addressFieldRect.x + _addressFieldRect.width + 2;
+    private Rect _throtRect = new Rect(2, 20, 100, 0);
+
+    private Rect _controllTypeButtons = new Rect(0, 0, 20, 20);
+    private bool _isControllerNull;
+
+    private void OnGUI() {
+        _addressFieldRect.x = (Screen.width - _addressFieldRect.width ) / 2;
+        _connectButtonRect.x = (Screen.width - _connectButtonRect.width ) / 2;
         address = GUI.TextField( _addressFieldRect, address );
         if (_tcpClient != null && _tcpClient.Connected) {
             if (GUI.Button( _connectButtonRect, "Disconnect" )) {
@@ -86,6 +109,29 @@ public class MainController : MonoBehaviour
         _throtRect.height = Screen.height - 40;
         _throtRect.x = Screen.width - 60;
         throttle = GUI.VerticalSlider(_throtRect, throttle, 1, 0.2f);
+
+        _controllTypeButtons.x = 2;
+        _controllTypeButtons.y = Screen.height - 22;
+
+        foreach (var value in _controllers.Keys)
+        {
+            if (GUI.Button(_controllTypeButtons, value == controlType ? "O" : "X"))
+            {
+                ChangeControl(value);
+                
+            }
+            _controllTypeButtons.x += 22;
+        }
+    }
+
+    private void ChangeControl(ControlType value)
+    {
+        Debug.Log(value);
+        if (_controller != null)
+            _controller.gameObject.SetActive(false);
+        _controller = _controllers[value];
+        _controller.gameObject.SetActive(true);
+        controlType = value;
     }
 
     public void OnApplicationQuit() {

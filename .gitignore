@@ -10,4 +10,5 @@ TraktorController/TraktorController.sln
 TraktorController/UpgradeLog.htm
 TraktorController/UserSettings/
 TraktorController/obj/
-android-controller.apk
+TraktorController/Temp/
+*.meta
